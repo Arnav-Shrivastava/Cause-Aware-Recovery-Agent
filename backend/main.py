@@ -84,13 +84,23 @@ async def process_event(event_data, db: Session, rng: random.Random):
     ))
     
     amount_recovered = 0.0
+    action_cost = 0.0
+    
+    CHANNEL_COSTS = {
+        "whatsapp": 0.50,
+        "email": 0.10,
+        "card_updater": 2.00,
+    }
     
     # 5. Action Execution
     if eval_result["decision"] == "execute":
+        channel_name = eval_result["channel"]
+        action_cost = CHANNEL_COSTS.get(channel_name.lower(), 0.0)
         action = RecoveryAction(
             failure_event_id=failure_event.id,
             action_type=eval_result["action"],
-            channel=eval_result["channel"],
+            channel=channel_name,
+            cost_estimate=action_cost,
             executed_at=utcnow(),
             status="executed"
         )
@@ -143,7 +153,8 @@ async def process_event(event_data, db: Session, rng: random.Random):
         
     return {
         "mrr_amount": customer.mrr_amount,
-        "recovered": amount_recovered
+        "recovered": amount_recovered,
+        "cost": action_cost
     }
 
 @app.post("/batch/run")
@@ -171,12 +182,15 @@ async def run_batch(n: int = Query(500), seed: int = Query(42), db: Session = De
     
     at_risk = sum(r["mrr_amount"] for r in results)
     recovered = sum(r["recovered"] for r in results)
+    total_cost = sum(r["cost"] for r in results)
     
     return {
         "status": "success",
         "events_processed": n,
         "at_risk": at_risk,
         "recovered": recovered,
+        "total_cost": total_cost,
+        "net_recovered": recovered - total_cost,
         "recovery_rate": (recovered / at_risk) if at_risk > 0 else 0
     }
 
@@ -190,6 +204,9 @@ def get_batch_summary(db: Session = Depends(get_db)):
     for outcome in outcomes:
         outcome_counts[outcome.outcome] = outcome_counts.get(outcome.outcome, 0) + 1
         recovered += outcome.amount_recovered
+        
+    actions = db.query(RecoveryAction).all()
+    total_cost = sum(a.cost_estimate or 0.0 for a in actions)
         
     customers = db.query(Customer).all()
     at_risk = 0
@@ -214,6 +231,8 @@ def get_batch_summary(db: Session = Depends(get_db)):
     return {
         "at_risk": round(at_risk, 2),
         "recovered": round(recovered, 2),
+        "total_cost": round(total_cost, 2),
+        "net_recovered": round(recovered - total_cost, 2),
         "recovery_rate": (recovered / at_risk) if at_risk > 0 else 0,
         "naive_baseline": naive_baseline,
         "outcome_counts": outcome_counts,
