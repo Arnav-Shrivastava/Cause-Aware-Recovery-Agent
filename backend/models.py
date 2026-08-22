@@ -12,6 +12,7 @@ class Customer(Base):
 
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
+    subscription_type = Column(String, nullable=True)
     mrr_amount = Column(Float, nullable=False)
     created_at = Column(DateTime, default=utcnow)
     
