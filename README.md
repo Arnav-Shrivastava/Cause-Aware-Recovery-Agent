@@ -9,3 +9,4 @@ This project automatically detects failed payments, diagnoses root causes, and e
 1. Install dependencies: `pip install -r requirements.txt`
 2. Create a `.env` file in the root directory based on the provided `.env` template.
 3. The database uses SQLite by default for local development. To use Postgres, update the `DATABASE_URL` in `.env`.
+4. Add your OpenAI API key as `OPENAI_API_KEY` in the `.env` file to enable cause classification and nudge copy generation.
