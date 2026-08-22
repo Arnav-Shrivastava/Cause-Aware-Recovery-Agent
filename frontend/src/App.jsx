@@ -25,6 +25,11 @@ function App() {
     try {
       const sumRes = await fetch(`${API_BASE}/batch/1/summary`);
       const sumData = await sumRes.json();
+
+      const naiveRes = await fetch(`${API_BASE}/batch/run-naive?n=500&seed=42`, { method: 'POST' });
+      const naiveData = await naiveRes.json();
+      sumData.naive_baseline = naiveData.recovery_rate;
+
       setSummary(sumData);
 
       const feedRes = await fetch(`${API_BASE}/dashboard/feed?limit=20`);
@@ -157,6 +162,9 @@ function App() {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+              </div>
+              <div className="text-xs text-muted mt-4 text-center italic">
+                *Naive blind retry benchmark derived from live simulation (industry average: 15-25%)
               </div>
             </div>
 

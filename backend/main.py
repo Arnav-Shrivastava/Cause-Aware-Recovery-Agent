@@ -157,6 +157,45 @@ async def process_event(event_data, db: Session, rng: random.Random):
         "cost": action_cost
     }
 
+async def process_naive_event(event_data, rng: random.Random):
+    # Deliberately dumb simulation: ignore cause, just retry via Email immediately
+    # No DB writes, no LLM calls
+    adapter = get_adapter_for_channel("Email")
+    sim_result = adapter.send(rng)
+    
+    outcome_status = "recovered" if sim_result["customer_responded"] else "no_response"
+    amount = event_data["mrr_amount"] if outcome_status == "recovered" else 0.0
+    cost = 0.10 # Email cost
+    
+    return {
+        "mrr_amount": event_data["mrr_amount"],
+        "recovered": amount,
+        "cost": cost
+    }
+
+@app.post("/batch/run-naive")
+async def run_naive_batch(n: int = Query(500), seed: int = Query(42)):
+    events = generate_batch(seed=seed, n=n)
+    rng = random.Random(seed)
+    
+    results = []
+    for ev in events:
+        results.append(await process_naive_event(ev, rng))
+        
+    at_risk = sum(r["mrr_amount"] for r in results)
+    recovered = sum(r["recovered"] for r in results)
+    total_cost = sum(r["cost"] for r in results)
+    
+    return {
+        "status": "success",
+        "events_processed": n,
+        "at_risk": at_risk,
+        "recovered": recovered,
+        "total_cost": total_cost,
+        "net_recovered": recovered - total_cost,
+        "recovery_rate": (recovered / at_risk) if at_risk > 0 else 0
+    }
+
 @app.post("/batch/run")
 async def run_batch(n: int = Query(500), seed: int = Query(42), db: Session = Depends(get_db)):
     """
