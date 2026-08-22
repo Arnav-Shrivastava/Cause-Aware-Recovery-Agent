@@ -225,14 +225,16 @@ def get_dashboard_feed(limit: int = Query(20), db: Session = Depends(get_db)):
 
 @app.get("/audit/{failure_event_id}")
 def get_audit_trail(failure_event_id: str, db: Session = Depends(get_db)):
+    event_uuid = uuid.UUID(failure_event_id)
+    
     # Get all logs for this failure event
     # First get logs directly tied to the event
     logs = db.query(AuditLog).filter(
-        AuditLog.entity_id == failure_event_id
+        AuditLog.entity_id == event_uuid
     ).all()
     
     # Also get logs for the associated recovery actions
-    actions = db.query(RecoveryAction).filter(RecoveryAction.failure_event_id == failure_event_id).all()
+    actions = db.query(RecoveryAction).filter(RecoveryAction.failure_event_id == event_uuid).all()
     action_ids = [a.id for a in actions]
     
     if action_ids:
