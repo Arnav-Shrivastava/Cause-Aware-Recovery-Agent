@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Activity, CheckCircle, XCircle, Clock, AlertTriangle, UserX, FileText } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, Line } from 'recharts';
 
 const API_BASE = 'http://localhost:8000';
 
@@ -98,6 +98,20 @@ function App() {
             <div className="card">
               <h3 className="text-sm font-semibold text-muted uppercase">Revenue at Risk</h3>
               <div className="stat-value">{formatCurrency(summary.at_risk)}</div>
+              {summary.daily_at_risk && (
+                <div className="h-12 mt-2 opacity-50">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={summary.daily_at_risk}>
+                      <Line type="monotone" dataKey="at_risk" stroke="#94A3B8" strokeWidth={2} dot={false} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#1E293B', border: 'none', borderRadius: '4px', fontSize: '12px', padding: '4px 8px' }}
+                        labelStyle={{ display: 'none' }}
+                        formatter={(val) => [formatCurrency(val), 'At Risk']}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </div>
             <div className="card">
               <h3 className="text-sm font-semibold text-muted uppercase">Revenue Recovered</h3>

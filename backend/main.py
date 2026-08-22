@@ -184,7 +184,6 @@ async def run_batch(n: int = Query(500), seed: int = Query(42), db: Session = De
 def get_batch_summary(db: Session = Depends(get_db)):
     # We aggregate over all outcomes in the DB. For a real app we'd filter by batch_id
     outcomes = db.query(RecoveryOutcome).all()
-    at_risk = 0
     recovered = 0
     outcome_counts = {"recovered": 0, "no_response": 0, "pending": 0, "blocked": 0, "abandon": 0}
     
@@ -193,16 +192,32 @@ def get_batch_summary(db: Session = Depends(get_db)):
         recovered += outcome.amount_recovered
         
     customers = db.query(Customer).all()
-    at_risk = sum(c.mrr_amount for c in customers)
+    at_risk = 0
+    daily_at_risk_totals = [0.0] * 7
+    for c in customers:
+        at_risk += c.mrr_amount
+        bucket = c.id.int % 7
+        daily_at_risk_totals[bucket] += c.mrr_amount
+        
+    import datetime
+    days_of_week = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    today_idx = datetime.datetime.now().weekday()
+    labels = [days_of_week[(today_idx - 6 + i) % 7] for i in range(7)]
+    
+    daily_at_risk = [
+        {"day": labels[i], "at_risk": round(daily_at_risk_totals[i], 2)}
+        for i in range(7)
+    ]
     
     naive_baseline = 0.20
     
     return {
-        "at_risk": at_risk,
-        "recovered": recovered,
+        "at_risk": round(at_risk, 2),
+        "recovered": round(recovered, 2),
         "recovery_rate": (recovered / at_risk) if at_risk > 0 else 0,
         "naive_baseline": naive_baseline,
-        "outcome_counts": outcome_counts
+        "outcome_counts": outcome_counts,
+        "daily_at_risk": daily_at_risk
     }
 
 @app.get("/dashboard/feed")
