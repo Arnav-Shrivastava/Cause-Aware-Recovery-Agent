@@ -39,6 +39,7 @@ async def process_event(event_data, db: Session, rng: random.Random):
     customer = Customer(
         id=uuid.UUID(event_data["customer_id"]),
         name=event_data["customer_name"],
+        subscription_type=event_data["subscription_type"],
         mrr_amount=event_data["mrr_amount"]
     )
     db.merge(customer) # merge to avoid unique constraint if we replay
@@ -215,6 +216,7 @@ def get_dashboard_feed(limit: int = Query(20), db: Session = Depends(get_db)):
         feed.append({
             "id": ev.id,
             "customer_name": ev.customer.name,
+            "subscription_type": ev.customer.subscription_type,
             "cause": ev.classified_cause,
             "raw_decline_code": ev.raw_decline_code,
             "action_taken": action.action_type if action else "None",

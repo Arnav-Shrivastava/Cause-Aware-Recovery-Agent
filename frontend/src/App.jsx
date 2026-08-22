@@ -186,7 +186,10 @@ function App() {
               <tbody>
                 {feed.map((row) => (
                   <tr key={row.id} onClick={() => openAuditTrail(row.id)}>
-                    <td className="td-strong">{row.customer_name}</td>
+                    <td className="td-strong">
+                      <div>{row.customer_name}</div>
+                      <div className="text-xs text-muted font-normal">{row.subscription_type}</div>
+                    </td>
                     <td>
                       <div>{row.cause}</div>
                       <div className="text-xs text-muted">{row.raw_decline_code}</div>
