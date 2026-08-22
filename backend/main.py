@@ -54,16 +54,19 @@ async def process_event(event_data, db: Session, rng: random.Random):
         classified_cause=classification["cause"],
         confidence=classification["confidence"],
         days_since_first_failure=event_data["days_since_first_failure"],
-        retry_count=event_data["retry_count"]
+        retry_count=event_data["retry_count"],
+        raw_decline_code=event_data.get("raw_decline_code")
     )
     db.merge(failure_event)
     
+    
+    raw_code = event_data.get('raw_decline_code', event_data['decline_code'])
     db.add(AuditLog(
         entity_type="FailureEvent",
         entity_id=failure_event.id,
         event_type="classification",
         actor="agent",
-        reason_text=f"Classified '{event_data['decline_code']}' as {classification['cause']} with confidence {classification['confidence']:.2f}"
+        reason_text=f"Bank declined: \"{raw_code}\" -> classified as {classification['cause']} (confidence {classification['confidence']:.2f})"
     ))
     
     # 4. Rules Engine Evaluation
@@ -219,7 +222,8 @@ def get_dashboard_feed(limit: int = Query(20), db: Session = Depends(get_db)):
             "decision": action.status if action else "pending",
             "outcome": outcome.outcome if outcome else "pending",
             "amount_recovered": outcome.amount_recovered if outcome else 0.0,
-            "mrr_amount": ev.customer.mrr_amount
+            "mrr_amount": ev.customer.mrr_amount,
+            "raw_decline_code": ev.raw_decline_code
         })
     return feed
 

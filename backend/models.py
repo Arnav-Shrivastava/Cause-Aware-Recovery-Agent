@@ -23,6 +23,7 @@ class FailureEvent(Base):
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     customer_id = Column(Uuid(as_uuid=True), ForeignKey("customers.id"), nullable=False)
     decline_code = Column(String, nullable=False)
+    raw_decline_code = Column(String, nullable=True) # Added for realistic display
     classified_cause = Column(String, nullable=True) # filled by LLM or direct mapping
     confidence = Column(Float, nullable=True)
     days_since_first_failure = Column(Integer, nullable=False)

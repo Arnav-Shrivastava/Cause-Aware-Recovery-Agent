@@ -187,7 +187,10 @@ function App() {
                 {feed.map((row) => (
                   <tr key={row.id} onClick={() => openAuditTrail(row.id)}>
                     <td className="td-strong">{row.customer_name}</td>
-                    <td>{row.cause}</td>
+                    <td>
+                      <div>{row.cause}</div>
+                      <div className="text-xs text-muted mt-1">{row.raw_decline_code}</div>
+                    </td>
                     <td>{row.action_taken}</td>
                     <td><span className={`badge badge-${row.outcome}`}>{row.outcome}</span></td>
                     <td className="text-right font-medium">{formatCurrency(row.mrr_amount)}</td>

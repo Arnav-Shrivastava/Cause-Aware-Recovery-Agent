@@ -37,12 +37,21 @@ def generate_batch(seed: int, n: int = 500) -> list:
             retry_count = base_retries
             
         mrr = round(rng.uniform(500, 5000), 2)
+        
+        raw_decline_map = {
+            "INSUFFICIENT_FUNDS": ["05 - Do Not Honor", "51 - Insufficient Funds"],
+            "MANDATE_EXPIRED": ["MD01 - Mandate Expired", "R08 - Payment Stopped"],
+            "CARD_EXPIRED": ["54 - Expired Card"],
+            "BANK_CHANGED": ["R02 - Account Closed", "14 - Invalid Account"]
+        }
+        raw_decline_code = rng.choice(raw_decline_map[cause])
             
         event = {
             "id": str(uuid.UUID(int=rng.getrandbits(128))), # Deterministic-ish random UUID for consistent UI keys? No, better use standard uuid, but we want deterministic so:
             "customer_id": str(uuid.UUID(int=rng.getrandbits(128))),
             "customer_name": f"Customer_{rng.randint(1000, 9999)}",
             "mrr_amount": mrr,
+            "raw_decline_code": raw_decline_code,
             "decline_code": cause, # Using clean code, the LLM step will simulate noisy codes if needed, or we just pass this
             "days_since_first_failure": days_since_first_failure,
             "retry_count": retry_count
