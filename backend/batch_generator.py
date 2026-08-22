@@ -1,0 +1,52 @@
+import random
+import uuid
+
+CAUSE_DISTRIBUTION = {
+    "INSUFFICIENT_FUNDS": 0.42,
+    "MANDATE_EXPIRED": 0.28,
+    "CARD_EXPIRED": 0.18,
+    "BANK_CHANGED": 0.12,
+}
+
+def generate_batch(seed: int, n: int = 500) -> list:
+    """
+    Deterministically generates a batch of failed payment events.
+    """
+    rng = random.Random(seed)
+    
+    causes = list(CAUSE_DISTRIBUTION.keys())
+    weights = list(CAUSE_DISTRIBUTION.values())
+    
+    events = []
+    
+    for _ in range(n):
+        # Cause
+        cause = rng.choices(causes, weights=weights, k=1)[0]
+        
+        # Age distribution: Triangular approximation, peaking around 13 (0-26 range)
+        days_since_first_failure = int((rng.uniform(0, 26) + rng.uniform(0, 26)) / 2)
+        
+        # Retry count strongly correlated with age to prevent nonsensical states
+        base_retries = min(3, max(0, days_since_first_failure - 7) // 6)
+        
+        # Add a little noise so it's not perfectly mechanical
+        # If we can add one without exceeding MAX_RETRY_ATTEMPTS (3)
+        if base_retries < 3 and rng.random() > 0.7:
+            retry_count = base_retries + 1
+        else:
+            retry_count = base_retries
+            
+        mrr = round(rng.uniform(500, 5000), 2)
+            
+        event = {
+            "id": str(uuid.UUID(int=rng.getrandbits(128))), # Deterministic-ish random UUID for consistent UI keys? No, better use standard uuid, but we want deterministic so:
+            "customer_id": str(uuid.UUID(int=rng.getrandbits(128))),
+            "customer_name": f"Customer_{rng.randint(1000, 9999)}",
+            "mrr_amount": mrr,
+            "decline_code": cause, # Using clean code, the LLM step will simulate noisy codes if needed, or we just pass this
+            "days_since_first_failure": days_since_first_failure,
+            "retry_count": retry_count
+        }
+        events.append(event)
+        
+    return events
