@@ -12,7 +12,6 @@ class Customer(Base):
 
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
-    subscription_type = Column(String, nullable=True)
     mrr_amount = Column(Float, nullable=False)
     created_at = Column(DateTime, default=utcnow)
     
@@ -24,7 +23,7 @@ class FailureEvent(Base):
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     customer_id = Column(Uuid(as_uuid=True), ForeignKey("customers.id"), nullable=False)
     decline_code = Column(String, nullable=False)
-    raw_decline_code = Column(String, nullable=True) # Added for realistic display
+    raw_decline_code = Column(String, nullable=True)
     classified_cause = Column(String, nullable=True) # filled by LLM or direct mapping
     confidence = Column(Float, nullable=True)
     days_since_first_failure = Column(Integer, nullable=False)
@@ -45,7 +44,6 @@ class RecoveryAction(Base):
     executed_at = Column(DateTime, nullable=True)
     cost_estimate = Column(Float, nullable=True)
     status = Column(String, nullable=False)
-    message_text = Column(String, nullable=True) # LLM generated nudge copy
     
     failure_event = relationship("FailureEvent", back_populates="recovery_actions")
     outcomes = relationship("RecoveryOutcome", back_populates="recovery_action")

@@ -39,7 +39,6 @@ async def process_event(event_data, db: Session, rng: random.Random):
     customer = Customer(
         id=uuid.UUID(event_data["customer_id"]),
         name=event_data["customer_name"],
-        subscription_type=event_data["subscription_type"],
         mrr_amount=event_data["mrr_amount"]
     )
     db.merge(customer) # merge to avoid unique constraint if we replay
@@ -52,22 +51,20 @@ async def process_event(event_data, db: Session, rng: random.Random):
         id=uuid.UUID(event_data["id"]),
         customer_id=customer.id,
         decline_code=event_data["decline_code"],
+        raw_decline_code=event_data["raw_decline_code"],
         classified_cause=classification["cause"],
         confidence=classification["confidence"],
         days_since_first_failure=event_data["days_since_first_failure"],
-        retry_count=event_data["retry_count"],
-        raw_decline_code=event_data.get("raw_decline_code")
+        retry_count=event_data["retry_count"]
     )
     db.merge(failure_event)
     
-    
-    raw_code = event_data.get('raw_decline_code', event_data['decline_code'])
     db.add(AuditLog(
         entity_type="FailureEvent",
         entity_id=failure_event.id,
         event_type="classification",
         actor="agent",
-        reason_text=f"Bank declined: \"{raw_code}\" -> classified as {classification['cause']} (confidence {classification['confidence']:.2f})"
+        reason_text=f"Bank declined: \"{event_data['raw_decline_code']}\" -> classified as {classification['cause']} (confidence {classification['confidence']:.2f})"
     ))
     
     # 4. Rules Engine Evaluation
@@ -101,8 +98,6 @@ async def process_event(event_data, db: Session, rng: random.Random):
         
         # LLM Nudge Copy
         nudge = await generate_nudge_copy(customer.name, action.action_type)
-        action.message_text = nudge
-        db.add(action)
         
         db.add(AuditLog(
             entity_type="RecoveryAction",
@@ -220,14 +215,13 @@ def get_dashboard_feed(limit: int = Query(20), db: Session = Depends(get_db)):
         feed.append({
             "id": ev.id,
             "customer_name": ev.customer.name,
-            "subscription_type": ev.customer.subscription_type,
             "cause": ev.classified_cause,
+            "raw_decline_code": ev.raw_decline_code,
             "action_taken": action.action_type if action else "None",
             "decision": action.status if action else "pending",
             "outcome": outcome.outcome if outcome else "pending",
             "amount_recovered": outcome.amount_recovered if outcome else 0.0,
-            "mrr_amount": ev.customer.mrr_amount,
-            "raw_decline_code": ev.raw_decline_code
+            "mrr_amount": ev.customer.mrr_amount
         })
     return feed
 
@@ -253,17 +247,13 @@ def get_audit_trail(failure_event_id: str, db: Session = Depends(get_db)):
         
     logs.sort(key=lambda x: x.created_at)
     
-    result = {
-        "logs": [
-            {
-                "id": log.id,
-                "event_type": log.event_type,
-                "actor": log.actor,
-                "reason_text": log.reason_text,
-                "created_at": log.created_at
-            }
-            for log in logs
-        ],
-        "message_sent": actions[0].message_text if action_ids and actions[0].status == "executed" else None
-    }
-    return result
+    return [
+        {
+            "id": log.id,
+            "event_type": log.event_type,
+            "actor": log.actor,
+            "reason_text": log.reason_text,
+            "created_at": log.created_at
+        }
+        for log in logs
+    ]
