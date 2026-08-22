@@ -45,6 +45,7 @@ class RecoveryAction(Base):
     executed_at = Column(DateTime, nullable=True)
     cost_estimate = Column(Float, nullable=True)
     status = Column(String, nullable=False)
+    message_text = Column(String, nullable=True) # LLM generated nudge copy
     
     failure_event = relationship("FailureEvent", back_populates="recovery_actions")
     outcomes = relationship("RecoveryOutcome", back_populates="recovery_action")

@@ -18,6 +18,7 @@ function App() {
   const [isRunning, setIsRunning] = useState(false);
   const [auditModal, setAuditModal] = useState(null);
   const [auditData, setAuditData] = useState([]);
+  const [messageSent, setMessageSent] = useState(null);
   const [loadingAudit, setLoadingAudit] = useState(false);
 
   const fetchDashboardData = async () => {
@@ -56,7 +57,13 @@ function App() {
     try {
       const res = await fetch(`${API_BASE}/audit/${eventId}`);
       const data = await res.json();
-      setAuditData(data);
+      if (Array.isArray(data)) {
+        setAuditData(data);
+        setMessageSent(null);
+      } else {
+        setAuditData(data.logs || []);
+        setMessageSent(data.message_sent || null);
+      }
     } catch (e) {
       console.error("Error fetching audit trail:", e);
     } finally {
@@ -243,6 +250,16 @@ function App() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+            
+            {!loadingAudit && messageSent && (
+              <div className="mt-6 border-t border-[rgba(255,255,255,0.1)] pt-6">
+                <h3 className="text-sm font-semibold text-muted uppercase mb-4">Message Sent</h3>
+                <div className="bg-[#1E293B] p-4 rounded-2xl rounded-tl-none border border-blue-500/30 text-sm shadow-lg relative max-w-[85%]">
+                  <div className="absolute -left-2 top-0 w-4 h-4 bg-[#1E293B] border-l border-t border-blue-500/30 transform -rotate-45"></div>
+                  {messageSent}
+                </div>
               </div>
             )}
           </div>
