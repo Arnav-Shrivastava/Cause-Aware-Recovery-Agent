@@ -41,6 +41,7 @@ class RecoveryAction(Base):
     failure_event_id = Column(Uuid(as_uuid=True), ForeignKey("failure_events.id"), nullable=False)
     action_type = Column(String, nullable=False)
     channel = Column(String, nullable=False)
+    message_text = Column(String, nullable=True)
     scheduled_for = Column(DateTime, nullable=True)
     executed_at = Column(DateTime, nullable=True)
     cost_estimate = Column(Float, nullable=True)

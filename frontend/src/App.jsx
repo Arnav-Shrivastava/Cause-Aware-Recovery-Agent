@@ -18,6 +18,7 @@ function App() {
   const [isRunning, setIsRunning] = useState(false);
   const [auditModal, setAuditModal] = useState(null);
   const [auditData, setAuditData] = useState([]);
+  const [auditMessage, setAuditMessage] = useState(null);
   const [loadingAudit, setLoadingAudit] = useState(false);
 
   const fetchDashboardData = async () => {
@@ -56,7 +57,8 @@ function App() {
     try {
       const res = await fetch(`${API_BASE}/audit/${eventId}`);
       const data = await res.json();
-      setAuditData(data);
+      setAuditData(data.logs || []);
+      setAuditMessage(data.message_text || null);
     } catch (e) {
       console.error("Error fetching audit trail:", e);
     } finally {
@@ -243,6 +245,22 @@ function App() {
                     </div>
                   </div>
                 ))}
+
+                {auditMessage && (
+                  <div className="audit-item mt-6">
+                    <div className="audit-dot agent"></div>
+                    <div className="flex justify-between items-baseline mb-1">
+                      <span className="font-semibold capitalize">Message Sent</span>
+                    </div>
+                    <div className="text-sm mb-2">
+                      <span className="text-muted mr-2">LLM Generated Copy</span>
+                    </div>
+                    <div className="p-4 rounded-b-xl rounded-tr-xl bg-accent/10 border border-accent/20 text-sm italic text-white/90 shadow-sm relative">
+                      <div className="absolute top-0 left-[-8px] w-0 h-0 border-t-[8px] border-t-accent/10 border-l-[8px] border-l-transparent"></div>
+                      "{auditMessage}"
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

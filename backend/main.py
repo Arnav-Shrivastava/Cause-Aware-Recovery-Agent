@@ -99,6 +99,7 @@ async def process_event(event_data, db: Session, rng: random.Random):
         
         # LLM Nudge Copy
         nudge = await generate_nudge_copy(customer.name, action.action_type)
+        action.message_text = nudge
         
         db.add(AuditLog(
             entity_type="RecoveryAction",
@@ -249,13 +250,16 @@ def get_audit_trail(failure_event_id: str, db: Session = Depends(get_db)):
         
     logs.sort(key=lambda x: x.created_at)
     
-    return [
-        {
-            "id": log.id,
-            "event_type": log.event_type,
-            "actor": log.actor,
-            "reason_text": log.reason_text,
-            "created_at": log.created_at
-        }
-        for log in logs
-    ]
+    return {
+        "logs": [
+            {
+                "id": log.id,
+                "event_type": log.event_type,
+                "actor": log.actor,
+                "reason_text": log.reason_text,
+                "created_at": log.created_at
+            }
+            for log in logs
+        ],
+        "message_text": actions[0].message_text if actions and actions[0].status == "executed" else None
+    }
