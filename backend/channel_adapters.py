@@ -53,7 +53,8 @@ class WhatsAppAdapter(MockChannelAdapter):
                     )
                     return {
                         "delivered": True,
-                        "customer_responded": True, # For demo purposes
+                        "customer_responded": False,
+                        "pending": True,
                         "provider_message_id": message.sid
                     }
                 except Exception as e:

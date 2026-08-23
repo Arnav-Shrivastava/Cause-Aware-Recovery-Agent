@@ -2,7 +2,8 @@ import asyncio
 import uuid
 import random
 from datetime import datetime, timezone
-from fastapi import FastAPI, Depends, HTTPException, Query
+import os
+from fastapi import FastAPI, Depends, HTTPException, Query, Form, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -360,7 +361,10 @@ async def demo_send_real(request: DemoSendRequest, db: Session = Depends(get_db)
         reason_text=f"Live demo send result: delivered={result.get('delivered')} provider_id={result.get('provider_message_id')}"
     ))
     
-    outcome_str = "recovered" if result.get("customer_responded") else "no_response"
+    if result.get("pending"):
+        outcome_str = "pending"
+    else:
+        outcome_str = "recovered" if result.get("customer_responded") else "no_response"
     outcome = RecoveryOutcome(
         recovery_action_id=demo_action.id,
         outcome=outcome_str,
@@ -373,7 +377,8 @@ async def demo_send_real(request: DemoSendRequest, db: Session = Depends(get_db)
         "success": True,
         "provider_message_id": demo_action.provider_message_id,
         "message_sent": message_text,
-        "result": result
+        "result": result,
+        "recovery_action_id": str(demo_action.id)
     }
 
 @app.get("/audit/{failure_event_id}")
@@ -410,4 +415,95 @@ def get_audit_trail(failure_event_id: str, db: Session = Depends(get_db)):
             for log in logs
         ],
         "message_text": actions[0].message_text if actions and actions[0].status == "executed" else None
+    }
+
+@app.post("/webhooks/whatsapp")
+async def whatsapp_webhook(
+    request: Request,
+    From: str = Form(...),
+    Body: str = Form(...),
+    MessageSid: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    twiml_response = Response(content="<Response></Response>", media_type="application/xml")
+    
+    phone_number = From.replace("whatsapp:", "").strip()
+    allowlist = os.environ.get("REAL_SEND_ALLOWLIST_PHONE", "").split(",")
+    allowlist = [phone.strip() for phone in allowlist if phone.strip()]
+    
+    if phone_number not in allowlist:
+        dummy_uuid = uuid.UUID(int=0)
+        db.add(AuditLog(
+            entity_type="System",
+            entity_id=dummy_uuid,
+            event_type="webhook_ignored",
+            actor="system",
+            reason_text=f"Ignored inbound WhatsApp message from non-allowlisted number: {phone_number}"
+        ))
+        db.commit()
+        return twiml_response
+        
+    action = db.query(RecoveryAction)\
+        .join(RecoveryOutcome)\
+        .filter(
+            RecoveryAction.channel == "whatsapp",
+            RecoveryAction.status == "executed",
+            RecoveryOutcome.outcome == "pending"
+        )\
+        .order_by(RecoveryAction.executed_at.desc())\
+        .first()
+        
+    if action:
+        outcome = action.outcomes[0]
+        outcome.outcome = "recovered"
+        outcome.amount_recovered = action.failure_event.customer.mrr_amount
+        outcome.resolved_at = utcnow()
+        
+        action.status = "completed"
+        
+        db.add(AuditLog(
+            entity_type="RecoveryAction",
+            entity_id=action.id,
+            event_type="demo_reply",
+            actor="customer",
+            reason_text=f"Customer replied via WhatsApp: \"{Body}\" — recovery action marked complete."
+        ))
+        db.commit()
+    else:
+        dummy_uuid = uuid.UUID(int=0)
+        db.add(AuditLog(
+            entity_type="System",
+            entity_id=dummy_uuid,
+            event_type="webhook_unmatched",
+            actor="system",
+            reason_text=f"Unmatched inbound WhatsApp message: {Body}"
+        ))
+        db.commit()
+        
+    return twiml_response
+
+@app.get("/demo/status/{recovery_action_id}")
+def get_demo_status(recovery_action_id: str, db: Session = Depends(get_db)):
+    action = db.query(RecoveryAction).filter(RecoveryAction.id == uuid.UUID(recovery_action_id)).first()
+    if not action:
+        raise HTTPException(status_code=404, detail="Action not found")
+        
+    outcome = action.outcomes[0] if action.outcomes else None
+    
+    reply_text = None
+    if outcome and outcome.outcome == "recovered":
+        log = db.query(AuditLog).filter(
+            AuditLog.entity_id == action.id,
+            AuditLog.event_type == "demo_reply"
+        ).first()
+        if log:
+            import re
+            m = re.search(r'Customer replied via WhatsApp: "(.*?)" — recovery action', log.reason_text)
+            if m:
+                reply_text = m.group(1)
+                
+    return {
+        "status": action.status,
+        "outcome": outcome.outcome if outcome else None,
+        "reply_text": reply_text
     }

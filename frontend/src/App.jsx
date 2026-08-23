@@ -25,6 +25,8 @@ function App() {
   const [demoContact, setDemoContact] = useState('');
   const [demoResult, setDemoResult] = useState(null);
   const [demoLoading, setDemoLoading] = useState(false);
+  const [demoActionId, setDemoActionId] = useState(null);
+  const [pollingStatus, setPollingStatus] = useState(null);
 
   const fetchDashboardData = async () => {
     try {
@@ -48,6 +50,43 @@ function App() {
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  useEffect(() => {
+    let intervalId;
+    if (demoActionId && pollingStatus === 'waiting') {
+      const startTime = Date.now();
+      const poll = async () => {
+        try {
+          if (Date.now() - startTime > 120000) {
+             setPollingStatus('timeout');
+             setDemoActionId(null);
+             return;
+          }
+          const res = await fetch(`${API_BASE}/demo/status/${demoActionId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.outcome === 'recovered') {
+               setPollingStatus('recovered');
+               setDemoResult(prev => ({
+                 ...prev,
+                 reply_text: data.reply_text,
+                 recovered: true
+               }));
+               setDemoActionId(null);
+               fetchDashboardData();
+            }
+          }
+        } catch (e) {
+          console.error("Poll error", e);
+        }
+      };
+      intervalId = setInterval(poll, 3000);
+      poll();
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [demoActionId, pollingStatus]);
 
   const handleRunBatch = async () => {
     setIsRunning(true);
@@ -83,6 +122,8 @@ function App() {
     }
     setDemoLoading(true);
     setDemoResult(null);
+    setDemoActionId(null);
+    setPollingStatus(null);
     try {
       const res = await fetch(`${API_BASE}/demo/send-real`, {
         method: 'POST',
@@ -95,6 +136,10 @@ function App() {
       });
       const data = await res.json();
       setDemoResult(data);
+      if (data.success && data.recovery_action_id && channel === 'WhatsApp') {
+         setDemoActionId(data.recovery_action_id);
+         setPollingStatus('waiting');
+      }
     } catch (e) {
       console.error(e);
       setDemoResult({ success: false, error: e.message });
@@ -291,6 +336,23 @@ function App() {
             {demoResult.provider_message_id && <div>Provider SID/ID: {demoResult.provider_message_id}</div>}
             {demoResult.message_sent && <div className="mt-2 text-white/80 italic">"{demoResult.message_sent}"</div>}
             {demoResult.error && <div>{demoResult.error}</div>}
+            
+            {pollingStatus === 'waiting' && (
+              <div className="mt-4 flex items-center gap-2 text-info">
+                <Clock className="animate-spin" size={16} /> Waiting for customer reply via WhatsApp...
+              </div>
+            )}
+            {pollingStatus === 'timeout' && (
+              <div className="mt-4 text-warning">
+                Timed out waiting for reply (2 minutes elapsed). No reply detected yet.
+              </div>
+            )}
+            {demoResult.recovered && (
+              <div className="mt-4 p-3 rounded bg-success/20 border border-success/30 text-success">
+                <div className="font-bold flex items-center gap-2"><CheckCircle size={16} /> Recovered!</div>
+                {demoResult.reply_text && <div className="mt-1 italic">Customer replied: "{demoResult.reply_text}"</div>}
+              </div>
+            )}
           </div>
         )}
       </div>
