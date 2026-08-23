@@ -21,7 +21,20 @@ To ensure safety and explainability, this project enforces a strict boundary:
 1. Open a terminal and navigate to the project root.
 2. Install dependencies: `pip install -r requirements.txt`
 3. Create a `.env` file in the root directory based on the provided `.env` template.
-4. Add your OpenAI API key as `OPENAI_API_KEY` in the `.env` file.
+4. Setup your environment variables in `.env`:
+   ```bash
+   OPENAI_API_KEY=your_key_here
+
+   # Optional: For Live Demo Send
+   REAL_SEND_ALLOWLIST_PHONE="+1234567890,+0987654321"
+   REAL_SEND_ALLOWLIST_EMAIL="test@example.com"
+   TWILIO_ACCOUNT_SID=your_sid
+   TWILIO_AUTH_TOKEN=your_token
+   TWILIO_WHATSAPP_FROM="whatsapp:+14155238886"
+   TWILIO_VOICE_FROM="+1234567890"
+   SENDGRID_API_KEY=your_sendgrid_key
+   SENDGRID_FROM_EMAIL="sender@example.com"
+   ```
 5. Start the backend:
    ```bash
    uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
@@ -41,11 +54,16 @@ The batch generation uses a seeded RNG (`seed=42`). Running the batch will alway
 
 ## Known Limitations
 - The LLM calls for `generate_nudge_copy` use a fast/cheap model (`gpt-4o-mini`) and will fall back to a hardcoded string if rate-limited.
-- WhatsApp, Email, and Card Updater calls are mocked with simulated response rates (0.68, 0.22, 0.55 respectively). No real messaging APIs are called.
+- For the batch processing, WhatsApp, Email, and Card Updater calls are mocked with simulated response rates. No real messaging APIs are called in the batch.
+- For the "Live Demo Send", real WhatsApp and Email integrations exist but only send to explicitly allowlisted phone numbers (`REAL_SEND_ALLOWLIST_PHONE`).
+- **Security Simplification**: The inbound WhatsApp webhook does not currently verify Twilio request signatures. For this judged demo, we rely strictly on verifying the inbound `From` phone number against our environment allowlist. In production, X-Twilio-Signature verification would be required.
 
 ## API Surface
 - `POST /batch/run?n=500&seed=42` - Generates a batch, runs the pipeline, and returns aggregate summary.
 - `GET /batch/{id}/summary` - Returns aggregate at-risk/recovered metrics and baseline info.
 - `GET /dashboard/feed?limit=20` - Returns recent individual events for the live feed.
 - `GET /audit/{failure_event_id}` - Returns the full plain-English audit trail.
+- `POST /demo/send-real` - Trigger a real-world send to an allowlisted contact.
+- `GET /demo/status/{id}` - Poll for the status/outcome of a live demo send.
+- `POST /webhooks/whatsapp` - Inbound Twilio webhook for WhatsApp replies.
 - `GET /health` - Simple liveness check.
