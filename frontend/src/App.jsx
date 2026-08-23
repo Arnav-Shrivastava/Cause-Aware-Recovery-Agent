@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Activity, CheckCircle, XCircle, Clock, AlertTriangle, UserX, FileText } from 'lucide-react';
+import { Play, Activity, CheckCircle, XCircle, Clock, AlertTriangle, UserX, FileText, Phone, Mail, MessageSquare } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, Line } from 'recharts';
 
 const API_BASE = 'http://localhost:8000';
@@ -20,6 +20,11 @@ function App() {
   const [auditData, setAuditData] = useState([]);
   const [auditMessage, setAuditMessage] = useState(null);
   const [loadingAudit, setLoadingAudit] = useState(false);
+
+  const [demoEventId, setDemoEventId] = useState('');
+  const [demoContact, setDemoContact] = useState('');
+  const [demoResult, setDemoResult] = useState(null);
+  const [demoLoading, setDemoLoading] = useState(false);
 
   const fetchDashboardData = async () => {
     try {
@@ -68,6 +73,33 @@ function App() {
       console.error("Error fetching audit trail:", e);
     } finally {
       setLoadingAudit(false);
+    }
+  };
+
+  const handleLiveDemo = async (channel) => {
+    if (!demoEventId || !demoContact) {
+      alert("Please select an event and enter a contact (phone or email)");
+      return;
+    }
+    setDemoLoading(true);
+    setDemoResult(null);
+    try {
+      const res = await fetch(`${API_BASE}/demo/send-real`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          failure_event_id: demoEventId,
+          channel,
+          target_contact: demoContact
+        })
+      });
+      const data = await res.json();
+      setDemoResult(data);
+    } catch (e) {
+      console.error(e);
+      setDemoResult({ success: false, error: e.message });
+    } finally {
+      setDemoLoading(false);
     }
   };
 
@@ -192,6 +224,76 @@ function App() {
           </div>
         </>
       )}
+
+      {/* Live Demo Send */}
+      <div className="card mb-8 border border-accent/20" style={{ background: 'linear-gradient(145deg, #1E293B 0%, #0F172A 100%)' }}>
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Play size={20} className="text-accent" /> Live Demo Send
+        </h3>
+        <p className="text-sm text-secondary mb-4">
+          Test real integrations on a subset of verified numbers. Note: the bulk batch is fully simulated to avoid sending messages to fake numbers.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div>
+            <label className="block text-xs font-semibold text-muted uppercase mb-1">Select Event to Replay</label>
+            <select 
+              className="w-full bg-[#151C2C] border border-[rgba(255,255,255,0.05)] rounded p-2 text-sm"
+              value={demoEventId}
+              onChange={(e) => setDemoEventId(e.target.value)}
+            >
+              <option value="">-- Choose an event from the feed --</option>
+              {feed.map(f => (
+                <option key={f.id} value={f.id}>{f.customer_name} ({f.cause})</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-muted uppercase mb-1">Allowlisted Contact (Phone/Email)</label>
+            <input 
+              type="text"
+              placeholder="+1234567890 or test@example.com"
+              className="w-full bg-[#151C2C] border border-[rgba(255,255,255,0.05)] rounded p-2 text-sm"
+              value={demoContact}
+              onChange={(e) => setDemoContact(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3 mb-4">
+          <button 
+            className="btn bg-[#25D366]/20 text-[#25D366] hover:bg-[#25D366]/30 border border-[#25D366]/30 flex-1"
+            onClick={() => handleLiveDemo('WhatsApp')}
+            disabled={demoLoading}
+          >
+            <MessageSquare size={16} /> Real WhatsApp
+          </button>
+          <button 
+            className="btn bg-accent/20 text-accent hover:bg-accent/30 border border-accent/30 flex-1"
+            onClick={() => handleLiveDemo('Voice')}
+            disabled={demoLoading}
+          >
+            <Phone size={16} /> Real Voice Call
+          </button>
+          <button 
+            className="btn bg-white/10 hover:bg-white/20 border border-white/20 flex-1"
+            onClick={() => handleLiveDemo('Email')}
+            disabled={demoLoading}
+          >
+            <Mail size={16} /> Real Email
+          </button>
+        </div>
+
+        {demoResult && (
+          <div className={`p-4 rounded-lg text-sm border ${demoResult.success ? (demoResult.provider_message_id ? 'border-success/50 bg-success/10 text-success' : 'border-warning/50 bg-warning/10 text-warning') : 'border-danger/50 bg-danger/10 text-danger'}`}>
+            <div className="font-semibold mb-1">
+              {demoResult.success ? (demoResult.provider_message_id ? 'Real Send Successful' : 'Fell back to simulation (Not in allowlist or missing creds)') : 'Error'}
+            </div>
+            {demoResult.provider_message_id && <div>Provider SID/ID: {demoResult.provider_message_id}</div>}
+            {demoResult.message_sent && <div className="mt-2 text-white/80 italic">"{demoResult.message_sent}"</div>}
+            {demoResult.error && <div>{demoResult.error}</div>}
+          </div>
+        )}
+      </div>
 
       {/* Feed */}
       <div className="card">
