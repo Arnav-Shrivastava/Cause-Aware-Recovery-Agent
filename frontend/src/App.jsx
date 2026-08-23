@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Activity, CheckCircle, XCircle, Clock, AlertTriangle, UserX, FileText, Phone, Mail, MessageSquare } from 'lucide-react';
+import { Play, Activity, CheckCircle, XCircle, Clock, AlertTriangle, UserX, FileText, Phone, Mail, MessageSquare, Sun, Moon } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, Line } from 'recharts';
-
+import { useTheme } from './components/theme-provider';
+import { Button } from './components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent } from './components/ui/card';
+import { Skeleton } from './components/ui/skeleton';
 const API_BASE = 'http://localhost:8000';
 
 function formatCurrency(amount) {
@@ -13,6 +16,7 @@ function formatCurrency(amount) {
 }
 
 function App() {
+  const { theme, setTheme } = useTheme();
   const [summary, setSummary] = useState(null);
   const [feed, setFeed] = useState([]);
   const [isRunning, setIsRunning] = useState(false);
@@ -154,66 +158,97 @@ function App() {
   ] : [];
 
   return (
-    <div className="container animate-fade-in">
-      <header className="flex justify-between items-center mb-8">
+    <div className="container mx-auto max-w-7xl p-6 animate-fade-in">
+      <header className="flex justify-between items-center mb-8 pb-4 border-b">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Activity className="text-accent" />
+          <div className="flex items-center gap-2 mb-1">
+            <Activity className="text-primary" size={24} />
+            <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">Project Name / Track</span>
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
             Cause-Aware Recovery Agent
           </h1>
-          <p className="text-secondary mt-2">AI-driven revenue recovery bounded by deterministic rules</p>
+          <p className="text-muted-foreground mt-2">AI-driven revenue recovery bounded by deterministic rules</p>
         </div>
-        <button 
-          onClick={handleRunBatch} 
-          disabled={isRunning}
-          className="btn btn-primary"
-        >
-          {isRunning ? <Clock className="animate-spin" size={20} /> : <Play size={20} />}
-          {isRunning ? 'Running Batch...' : 'Run Batch (500 events)'}
-        </button>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="p-2 rounded-full hover:bg-accent text-accent-foreground transition-colors"
+          >
+            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+          {isRunning ? (
+            <Skeleton className="h-10 w-[200px]" />
+          ) : (
+            <Button onClick={handleRunBatch} disabled={isRunning}>
+              <Play className="mr-2" size={16} />
+              Run Batch (500 events)
+            </Button>
+          )}
+        </div>
       </header>
 
       {summary && (
         <>
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-            <div className="card">
-              <h3 className="text-sm font-semibold text-muted uppercase">Revenue at Risk</h3>
-              <div className="stat-value">{formatCurrency(summary.at_risk)}</div>
-              {summary.daily_at_risk && (
-                <div className="h-12 mt-2 opacity-50">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={summary.daily_at_risk}>
-                      <Line type="monotone" dataKey="at_risk" stroke="#94A3B8" strokeWidth={2} dot={false} />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#1E293B', border: 'none', borderRadius: '4px', fontSize: '12px', padding: '4px 8px' }}
-                        labelStyle={{ display: 'none' }}
-                        formatter={(val) => [formatCurrency(val), 'At Risk']}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase">Revenue at Risk</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatCurrency(summary.at_risk)}</div>
+                {summary.daily_at_risk && (
+                  <div className="h-12 mt-2 opacity-50">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={summary.daily_at_risk}>
+                        <Line type="monotone" dataKey="at_risk" stroke="hsl(var(--muted-foreground))" strokeWidth={2} dot={false} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)', fontSize: '12px', padding: '4px 8px', color: 'hsl(var(--popover-foreground))' }}
+                          labelStyle={{ display: 'none' }}
+                          formatter={(val) => [formatCurrency(val), 'At Risk']}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase">Gross Recovered</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatCurrency(summary.recovered)}</div>
+              </CardContent>
+            </Card>
+            <Card className="border-primary/30 shadow-sm bg-primary/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-semibold text-primary uppercase">Net Recovered</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-primary">{formatCurrency(summary.net_recovered)}</div>
+                <div className="text-xs text-muted-foreground mt-1">Cost: {formatCurrency(summary.total_cost)}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase">Recovery Rate</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{(summary.recovery_rate * 100).toFixed(1)}%</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase">Uplift vs Baseline</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600 dark:text-green-500">
+                  +{((summary.recovery_rate - summary.naive_baseline) * 100).toFixed(1)} pp
                 </div>
-              )}
-            </div>
-            <div className="card">
-              <h3 className="text-sm font-semibold text-muted uppercase">Gross Recovered</h3>
-              <div className="stat-value">{formatCurrency(summary.recovered)}</div>
-            </div>
-            <div className="card">
-              <h3 className="text-sm font-semibold text-muted uppercase">Net Recovered</h3>
-              <div className="stat-value highlight">{formatCurrency(summary.net_recovered)}</div>
-              <div className="text-xs text-muted mt-1">Cost: {formatCurrency(summary.total_cost)}</div>
-            </div>
-            <div className="card">
-              <h3 className="text-sm font-semibold text-muted uppercase">Recovery Rate</h3>
-              <div className="stat-value">{(summary.recovery_rate * 100).toFixed(1)}%</div>
-            </div>
-            <div className="card">
-              <h3 className="text-sm font-semibold text-muted uppercase">Uplift vs Baseline</h3>
-              <div className="stat-value text-success">
-                +{((summary.recovery_rate - summary.naive_baseline) * 100).toFixed(1)} pp
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
