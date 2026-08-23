@@ -301,6 +301,81 @@ def get_dashboard_feed(limit: int = Query(20), db: Session = Depends(get_db)):
         })
     return feed
 
+class DemoSendRequest(BaseModel):
+    failure_event_id: str
+    channel: str
+    target_contact: str
+
+@app.post("/demo/send-real")
+async def demo_send_real(request: DemoSendRequest, db: Session = Depends(get_db)):
+    event_uuid = uuid.UUID(request.failure_event_id)
+    event = db.query(FailureEvent).filter(FailureEvent.id == event_uuid).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+        
+    customer = event.customer
+    
+    # Retrieve existing action text or generate a new one
+    action = db.query(RecoveryAction).filter(RecoveryAction.failure_event_id == event_uuid).first()
+    if action and action.message_text:
+        message_text = action.message_text
+        action_type = action.action_type
+    else:
+        action_type = "Delayed retry"
+        message_text = await generate_nudge_copy(customer.name, action_type)
+        
+    demo_action = RecoveryAction(
+        failure_event_id=event.id,
+        action_type=action_type,
+        channel=request.channel,
+        message_text=message_text,
+        status="executed",
+        executed_at=utcnow()
+    )
+    db.add(demo_action)
+    db.flush()
+    
+    db.add(AuditLog(
+        entity_type="RecoveryAction",
+        entity_id=demo_action.id,
+        event_type="execution",
+        actor="agent",
+        reason_text=f"Live demo send via {request.channel} to {request.target_contact}."
+    ))
+    
+    rng = random.Random()
+    adapter = get_adapter_for_channel(request.channel)
+    
+    # The adapter will try real sending if allowlist matches, else fallback to mock
+    result = adapter.send(rng, target_contact=request.target_contact, message_text=message_text)
+    
+    if result.get("provider_message_id"):
+        demo_action.provider_message_id = result["provider_message_id"]
+        
+    db.add(AuditLog(
+        entity_type="RecoveryAction",
+        entity_id=demo_action.id,
+        event_type="demo_result",
+        actor="agent",
+        reason_text=f"Live demo send result: delivered={result.get('delivered')} provider_id={result.get('provider_message_id')}"
+    ))
+    
+    outcome_str = "recovered" if result.get("customer_responded") else "no_response"
+    outcome = RecoveryOutcome(
+        recovery_action_id=demo_action.id,
+        outcome=outcome_str,
+        amount_recovered=customer.mrr_amount if outcome_str == "recovered" else 0.0
+    )
+    db.add(outcome)
+    db.commit()
+    
+    return {
+        "success": True,
+        "provider_message_id": demo_action.provider_message_id,
+        "message_sent": message_text,
+        "result": result
+    }
+
 @app.get("/audit/{failure_event_id}")
 def get_audit_trail(failure_event_id: str, db: Session = Depends(get_db)):
     event_uuid = uuid.UUID(failure_event_id)
