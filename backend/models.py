@@ -46,6 +46,7 @@ class RecoveryAction(Base):
     executed_at = Column(DateTime, nullable=True)
     cost_estimate = Column(Float, nullable=True)
     status = Column(String, nullable=False)
+    provider_message_id = Column(String, nullable=True)
     
     failure_event = relationship("FailureEvent", back_populates="recovery_actions")
     outcomes = relationship("RecoveryOutcome", back_populates="recovery_action")
